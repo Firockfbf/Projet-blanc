@@ -79,15 +79,10 @@ Ce projet sert a s'entrainer sur un sujet tres proche d'un projet d'examen:
 ```text
 projet blanc/
 ├── backend/        # API Express, base SQLite, seed, tests
-├── docs/           # documentation projet et veille technique
 ├── frontend/       # application React/Vite
 ├── README.md
 └── package.json    # scripts racine
 ```
-
-## Documentation disponible
-
-- veille technique: [docs/veille-technique-certicampus.md](docs/veille-technique-certicampus.md)
 
 ## Installation
 
