@@ -81,6 +81,7 @@ deploy:production:
     - export JWT_SECRET="${JWT_SECRET:-change-me-in-production}"
     - export BACKEND_PORT="${BACKEND_PORT:-3001}"
     - export FRONTEND_PORT="${FRONTEND_PORT:-80}"
+    - export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-projet-blanc}"
     - docker compose pull
     - docker compose up -d --remove-orphans
     - ./ops/check-certicampus.sh
