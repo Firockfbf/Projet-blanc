@@ -165,4 +165,74 @@ describe("CertiCampus API", () => {
     expect(response.status).toBe(200);
     expect(response.body.schools.length).toBeGreaterThan(0);
   });
+
+  it("publishes a generated certificate before public verification succeeds", async () => {
+    const register = await request(app).post("/api/auth/register-school").send({
+      schoolName: "Ecole Certificat",
+      email: "certificat@school.test",
+      username: "manager-certificat",
+      password: "Test1234",
+      firstName: "Lina",
+      lastName: "Moreau",
+      city: "Paris",
+    });
+
+    const token = register.body.token;
+
+    const formationResponse = await request(app)
+      .post("/api/formations")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        name: "Master Cloud",
+        code: "M1CLOUD",
+        year: "2025-2026",
+      });
+
+    const studentResponse = await request(app)
+      .post("/api/students")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        firstName: "Maya",
+        lastName: "Lopez",
+        email: "maya@school.test",
+        formationId: formationResponse.body.formation.id,
+        status: "ADMITTED",
+        graduationYear: "2026",
+      });
+
+    const generateResponse = await request(app)
+      .post("/api/certificates/generate")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        studentIds: [studentResponse.body.student.id],
+      });
+
+    expect(generateResponse.status).toBe(201);
+    expect(generateResponse.body.certificates).toHaveLength(1);
+
+    const generatedCertificate = generateResponse.body.certificates[0];
+
+    const verifyBeforePublish = await request(app).get(
+      `/api/certificates/verify/${generatedCertificate.code}`,
+    );
+
+    expect(verifyBeforePublish.status).toBe(404);
+
+    const publishResponse = await request(app)
+      .post("/api/certificates/publish")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        certificateIds: [generatedCertificate.id],
+      });
+
+    expect(publishResponse.status).toBe(200);
+    expect(publishResponse.body.count).toBe(1);
+
+    const verifyAfterPublish = await request(app).get(
+      `/api/certificates/verify/${generatedCertificate.code}`,
+    );
+
+    expect(verifyAfterPublish.status).toBe(200);
+    expect(verifyAfterPublish.body.certificate.publishedAt).toBeTruthy();
+  });
 });

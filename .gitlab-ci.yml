@@ -1,0 +1,86 @@
+stages:
+  - test
+  - build
+  - docker
+  - deploy
+
+variables:
+  BACKEND_IMAGE_NAME: "$CI_REGISTRY_IMAGE/backend"
+  FRONTEND_IMAGE_NAME: "$CI_REGISTRY_IMAGE/frontend"
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_DRIVER: overlay2
+
+default:
+  interruptible: true
+
+cache:
+  key: "$CI_COMMIT_REF_SLUG"
+  paths:
+    - backend/node_modules/
+    - frontend/node_modules/
+
+backend:test:
+  stage: test
+  image: node:22-bookworm-slim
+  before_script:
+    - cd backend
+    - npm ci
+  script:
+    - npm run test
+
+frontend:build:
+  stage: build
+  image: node:22-bookworm-slim
+  before_script:
+    - cd frontend
+    - npm ci
+  script:
+    - npm run build
+  artifacts:
+    paths:
+      - frontend/dist
+    expire_in: 1 week
+
+docker:build:
+  stage: docker
+  image: docker:28.1.1
+  services:
+    - docker:28.1.1-dind
+  needs: ["backend:test", "frontend:build"]
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+  script:
+    - docker build -t "$BACKEND_IMAGE_NAME:$CI_COMMIT_SHORT_SHA" backend
+    - docker push "$BACKEND_IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
+    - docker build -t "$FRONTEND_IMAGE_NAME:$CI_COMMIT_SHORT_SHA" frontend
+    - docker push "$FRONTEND_IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+        docker tag "$BACKEND_IMAGE_NAME:$CI_COMMIT_SHORT_SHA" "$BACKEND_IMAGE_NAME:latest"
+        docker tag "$FRONTEND_IMAGE_NAME:$CI_COMMIT_SHORT_SHA" "$FRONTEND_IMAGE_NAME:latest"
+        docker push "$BACKEND_IMAGE_NAME:latest"
+        docker push "$FRONTEND_IMAGE_NAME:latest"
+      fi
+
+deploy:production:
+  stage: deploy
+  needs: ["docker:build"]
+  environment:
+    name: production
+  script:
+    - chmod +x ops/backup-certicampus.sh ops/check-certicampus.sh
+    - docker compose version
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - if docker ps --format '{{.Names}}' | grep -q '^certicampus-backend$'; then ./ops/backup-certicampus.sh; fi
+    - export BACKEND_IMAGE="$BACKEND_IMAGE_NAME:latest"
+    - export FRONTEND_IMAGE="$FRONTEND_IMAGE_NAME:latest"
+    - export APP_URL="${APP_URL:-http://localhost}"
+    - export JWT_SECRET="${JWT_SECRET:-change-me-in-production}"
+    - export BACKEND_PORT="${BACKEND_PORT:-3001}"
+    - export FRONTEND_PORT="${FRONTEND_PORT:-80}"
+    - docker compose pull
+    - docker compose up -d --remove-orphans
+    - ./ops/check-certicampus.sh
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: on_success

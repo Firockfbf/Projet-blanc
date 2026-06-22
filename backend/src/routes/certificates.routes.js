@@ -24,6 +24,7 @@ function mapCertificateRow(row) {
     verificationUrl: row.verificationUrl,
     qrCodeDataUrl: row.qrCodeDataUrl,
     issuedAt: row.issuedAt,
+    publishedAt: row.publishedAt || null,
     school: row.school_id
       ? {
           id: row.school_id,
@@ -67,6 +68,7 @@ router.get("/verify/:code", async (req, res) => {
         c.verification_url AS verificationUrl,
         c.qr_code_data_url AS qrCodeDataUrl,
         c.issued_at AS issuedAt,
+        c.published_at AS publishedAt,
         st.id AS student_id,
         st.first_name AS student_firstName,
         st.last_name AS student_lastName,
@@ -90,6 +92,7 @@ router.get("/verify/:code", async (req, res) => {
       JOIN schools s ON s.id = c.school_id
       LEFT JOIN certificate_templates t ON t.id = c.template_id
       WHERE c.code = @code
+        AND c.published_at IS NOT NULL
       LIMIT 1
     `,
     { code: req.params.code },
@@ -107,6 +110,17 @@ router.use(requireRole("SCHOOL", "ADMIN"));
 
 router.get("/", async (req, res) => {
   const schoolId = requireScopedSchoolId(req);
+  const published = req.query.published?.trim();
+  const conditions = ["c.school_id = @schoolId"];
+
+  if (published === "true") {
+    conditions.push("c.published_at IS NOT NULL");
+  }
+
+  if (published === "false") {
+    conditions.push("c.published_at IS NULL");
+  }
+
   const certificates = all(
     `
       SELECT
@@ -115,6 +129,7 @@ router.get("/", async (req, res) => {
         c.verification_url AS verificationUrl,
         c.qr_code_data_url AS qrCodeDataUrl,
         c.issued_at AS issuedAt,
+        c.published_at AS publishedAt,
         st.id AS student_id,
         st.first_name AS student_firstName,
         st.last_name AS student_lastName,
@@ -133,7 +148,7 @@ router.get("/", async (req, res) => {
       JOIN students st ON st.id = c.student_id
       LEFT JOIN formations f ON f.id = st.formation_id
       LEFT JOIN certificate_templates t ON t.id = c.template_id
-      WHERE c.school_id = @schoolId
+      WHERE ${conditions.join(" AND ")}
       ORDER BY c.issued_at DESC
     `,
     { schoolId },
@@ -229,6 +244,7 @@ router.post("/generate", async (req, res) => {
       FROM students s
       LEFT JOIN formations f ON f.id = s.formation_id
       WHERE s.school_id = @schoolId
+        AND s.certified = 0
         AND s.id IN (${studentPlaceholders.join(", ")})
     `,
     studentParams,
@@ -304,6 +320,7 @@ router.post("/generate", async (req, res) => {
           c.verification_url AS verificationUrl,
           c.qr_code_data_url AS qrCodeDataUrl,
           c.issued_at AS issuedAt,
+          c.published_at AS publishedAt,
           st.id AS student_id,
           st.first_name AS student_firstName,
           st.last_name AS student_lastName,
@@ -334,6 +351,39 @@ router.post("/generate", async (req, res) => {
   return res.status(201).json({
     message: `${certificates.length} certificat(s) genere(s).`,
     certificates,
+  });
+});
+
+router.post("/publish", async (req, res) => {
+  const schoolId = requireScopedSchoolId(req);
+  const payload = z
+    .object({
+      certificateIds: z.array(z.string()).min(1),
+    })
+    .parse(req.body);
+
+  const placeholders = payload.certificateIds.map((_, index) => `@id${index}`);
+  const params = payload.certificateIds.reduce(
+    (accumulator, value, index) => ({ ...accumulator, [`id${index}`]: value }),
+    {
+      schoolId,
+      publishedAt: now(),
+    },
+  );
+
+  const result = run(
+    `
+      UPDATE certificates
+      SET published_at = COALESCE(published_at, @publishedAt)
+      WHERE school_id = @schoolId
+        AND id IN (${placeholders.join(", ")})
+    `,
+    params,
+  );
+
+  return res.json({
+    message: `${result.changes} certificat(s) publie(s).`,
+    count: result.changes,
   });
 });
 

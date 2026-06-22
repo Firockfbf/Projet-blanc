@@ -22,7 +22,7 @@ app.get("/", (req, res) => {
   res.json({
     name: "CertiCampus API",
     status: "ok",
-    frontendUrl: "http://localhost:5173",
+    frontendUrl: process.env.APP_URL || "http://localhost:5173",
     healthcheck: "/api/health",
     routes: {
       auth: "/api/auth",

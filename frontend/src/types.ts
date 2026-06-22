@@ -93,6 +93,7 @@ export type Certificate = {
   verificationUrl: string;
   qrCodeDataUrl: string;
   issuedAt: string;
+  publishedAt: string | null;
   student: {
     id: string;
     firstName: string;

@@ -174,4 +174,28 @@ router.delete("/:id", async (req, res) => {
   return res.json({ message: "Formation supprimee." });
 });
 
+router.post("/bulk-delete", async (req, res) => {
+  const schoolId = requireScopedSchoolId(req);
+  const payload = z.object({ ids: z.array(z.string()).min(1) }).parse(req.body);
+
+  const placeholders = payload.ids.map((_, index) => `@id${index}`);
+  const params = payload.ids.reduce(
+    (accumulator, value, index) => ({ ...accumulator, [`id${index}`]: value }),
+    { schoolId },
+  );
+
+  const result = run(
+    `
+      DELETE FROM formations
+      WHERE school_id = @schoolId
+        AND id IN (${placeholders.join(", ")})
+    `,
+    params,
+  );
+
+  return res.json({
+    message: `${result.changes} formation(s) supprimee(s).`,
+  });
+});
+
 module.exports = router;

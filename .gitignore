@@ -10,3 +10,4 @@ backend/test.db
 backend/*.db
 
 frontend/dist/
+backups/

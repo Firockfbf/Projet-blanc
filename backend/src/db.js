@@ -114,6 +114,16 @@ db.exec(`
   );
 `);
 
+function ensureColumn(tableName, columnName, definition) {
+  const columns = db.prepare(`PRAGMA table_info(${tableName})`).all();
+
+  if (!columns.some((column) => column.name === columnName)) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+  }
+}
+
+ensureColumn("certificates", "published_at", "TEXT");
+
 function now() {
   return new Date().toISOString();
 }

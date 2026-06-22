@@ -1,0 +1,49 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    image: ${BACKEND_IMAGE:-certicampus-backend:local}
+    container_name: certicampus-backend
+    environment:
+      PORT: 3001
+      DATABASE_URL: file:./data/app.db
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      APP_URL: ${APP_URL:-http://localhost}
+    volumes:
+      - certicampus-data:/app/data
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-3001}:3001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/api/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    image: ${FRONTEND_IMAGE:-certicampus-frontend:local}
+    container_name: certicampus-frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  certicampus-data:

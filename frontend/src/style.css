@@ -53,6 +53,11 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 input,
 select,
 textarea {
@@ -263,6 +268,10 @@ code {
   flex-wrap: wrap;
 }
 
+.filter-actions {
+  margin-bottom: 1rem;
+}
+
 .pill {
   border-radius: 999px;
   padding: 0.45rem 0.9rem;
@@ -346,6 +355,10 @@ code {
   overflow-x: auto;
 }
 
+.checkbox-cell {
+  width: 3rem;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -362,6 +375,38 @@ td {
   display: flex;
   gap: 0.45rem;
   flex-wrap: wrap;
+}
+
+.filter-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 1rem;
+}
+
+.filter-grid-single {
+  grid-template-columns: minmax(220px, 280px);
+}
+
+.empty-table {
+  color: var(--text-soft);
+  text-align: center;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.32rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(16, 37, 34, 0.08);
+  color: var(--text-strong);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.status-pill.success {
+  background: rgba(2, 122, 72, 0.12);
+  color: #027a48;
 }
 
 .double-layout {
@@ -422,6 +467,46 @@ td {
   font-weight: 600;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 37, 34, 0.5);
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  z-index: 1000;
+}
+
+.modal-panel {
+  width: min(760px, 100%);
+  border-radius: var(--radius-xl);
+  padding: 1.4rem;
+  background: var(--bg-panel-strong);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 1rem;
+}
+
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.modal-head h2 {
+  margin: 0;
+  color: var(--text-strong);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 @media (max-width: 900px) {
   .auth-shell,
   .double-layout,
@@ -430,6 +515,7 @@ td {
   }
 
   .demo-cards,
+  .filter-grid,
   .grid-form,
   .verify-grid {
     grid-template-columns: 1fr;
