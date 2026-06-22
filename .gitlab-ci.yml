@@ -67,6 +67,9 @@ deploy:production:
   needs: ["docker:build"]
   environment:
     name: production
+  tags:
+    - certicampus
+    - vm
   script:
     - chmod +x ops/backup-certicampus.sh ops/check-certicampus.sh
     - docker compose version
