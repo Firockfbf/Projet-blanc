@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import api from "../api";
+import FieldError from "../components/FieldError";
 import SimpleModal from "../components/SimpleModal";
+import useFormFeedback from "../hooks/useFormFeedback";
 import { useSession } from "../session";
 import type { CertificateTemplate, School, Subscription } from "../types";
 
@@ -24,8 +26,19 @@ const emptySubscriptionEditForm = {
   maxStudents: "250",
 };
 
+const schoolFieldAliases = {
+  "manager.firstName": "managerFirstName",
+  "manager.lastName": "managerLastName",
+  "manager.username": "managerUsername",
+  "manager.password": "managerPassword",
+};
+
 export default function AdminWorkspace() {
   const { clearSession } = useSession();
+  const schoolFeedback = useFormFeedback();
+  const subscriptionFeedback = useFormFeedback();
+  const templateFeedback = useFormFeedback();
+  const subscriptionEditFeedback = useFormFeedback();
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
@@ -62,6 +75,12 @@ export default function AdminWorkspace() {
     footerText: "Document numerique genere par CertiCampus.",
     accentColor: "#14532d",
   });
+  const hasManagerDraft = Boolean(
+    schoolForm.managerFirstName ||
+      schoolForm.managerLastName ||
+      schoolForm.managerUsername ||
+      schoolForm.managerPassword,
+  );
 
   const loadAll = async () => {
     setLoading(true);
@@ -107,58 +126,79 @@ export default function AdminWorkspace() {
 
   const submitSchool = async (event: FormEvent) => {
     event.preventDefault();
-    await api.post("/admin/schools", {
-      name: schoolForm.name,
-      email: schoolForm.email,
-      city: schoolForm.city,
-      country: schoolForm.country,
-      subscriptionId: schoolForm.subscriptionId || null,
-      manager: schoolForm.managerUsername
-        ? {
-            firstName: schoolForm.managerFirstName,
-            lastName: schoolForm.managerLastName,
-            username: schoolForm.managerUsername,
-            password: schoolForm.managerPassword,
-          }
-        : undefined,
-    });
-    setSchoolForm({
-      name: "",
-      email: "",
-      city: "",
-      country: "France",
-      subscriptionId: "",
-      managerFirstName: "",
-      managerLastName: "",
-      managerUsername: "",
-      managerPassword: "",
-    });
-    setNotice("Ecole ajoutee.");
-    await loadAll();
+    schoolFeedback.resetFeedback();
+    setNotice(null);
+
+    try {
+      await api.post("/admin/schools", {
+        name: schoolForm.name,
+        email: schoolForm.email,
+        city: schoolForm.city,
+        country: schoolForm.country,
+        subscriptionId: schoolForm.subscriptionId || null,
+        manager: schoolForm.managerUsername
+          ? {
+              firstName: schoolForm.managerFirstName,
+              lastName: schoolForm.managerLastName,
+              username: schoolForm.managerUsername,
+              password: schoolForm.managerPassword,
+            }
+          : undefined,
+      });
+      setSchoolForm({
+        name: "",
+        email: "",
+        city: "",
+        country: "France",
+        subscriptionId: "",
+        managerFirstName: "",
+        managerLastName: "",
+        managerUsername: "",
+        managerPassword: "",
+      });
+      setNotice("Ecole ajoutee.");
+      await loadAll();
+    } catch (requestError: unknown) {
+      schoolFeedback.applyApiError(requestError, schoolFieldAliases);
+    }
   };
 
   const submitSubscription = async (event: FormEvent) => {
     event.preventDefault();
-    await api.post("/admin/subscriptions", {
-      ...subscriptionForm,
-      monthlyPrice: Number(subscriptionForm.monthlyPrice),
-      maxStudents: Number(subscriptionForm.maxStudents),
-    });
-    setSubscriptionForm({
-      name: "",
-      description: "",
-      monthlyPrice: "39",
-      maxStudents: "250",
-    });
-    setNotice("Abonnement ajoute.");
-    await loadAll();
+    subscriptionFeedback.resetFeedback();
+    setNotice(null);
+
+    try {
+      await api.post("/admin/subscriptions", {
+        ...subscriptionForm,
+        monthlyPrice: Number(subscriptionForm.monthlyPrice),
+        maxStudents: Number(subscriptionForm.maxStudents),
+      });
+      setSubscriptionForm({
+        name: "",
+        description: "",
+        monthlyPrice: "39",
+        maxStudents: "250",
+      });
+      setNotice("Abonnement ajoute.");
+      await loadAll();
+    } catch (requestError: unknown) {
+      subscriptionFeedback.applyApiError(requestError);
+    }
   };
 
   const saveTemplate = async (event: FormEvent) => {
     event.preventDefault();
-    await api.put("/admin/templates/default", templateForm);
-    setNotice("Template mis a jour.");
-    await loadAll();
+    templateFeedback.resetFeedback();
+    setNotice(null);
+
+    try {
+      await api.put("/admin/templates/default", templateForm);
+      setNotice("Template mis a jour.");
+      await loadAll();
+    } catch (requestError: unknown) {
+      templateFeedback.applyApiError(requestError);
+    }
   };
 
   const deleteSchool = async (schoolId: string) => {
@@ -174,6 +214,7 @@ export default function AdminWorkspace() {
   };
 
   const openSubscriptionModal = (subscription: Subscription) => {
+    subscriptionEditFeedback.resetFeedback();
     setEditingSubscription(subscription);
     setSubscriptionEditForm({
       name: subscription.name,
@@ -190,17 +231,24 @@ export default function AdminWorkspace() {
       return;
     }
 
-    await api.put(`/admin/subscriptions/${editingSubscription.id}`, {
-      name: subscriptionEditForm.name,
-      description: subscriptionEditForm.description,
-      monthlyPrice: Number(subscriptionEditForm.monthlyPrice),
-      maxStudents: Number(subscriptionEditForm.maxStudents),
-    });
+    subscriptionEditFeedback.resetFeedback();
+    setNotice(null);
 
-    setEditingSubscription(null);
-    setSubscriptionEditForm(emptySubscriptionEditForm);
-    setNotice("Abonnement modifie.");
-    await loadAll();
+    try {
+      await api.put(`/admin/subscriptions/${editingSubscription.id}`, {
+        name: subscriptionEditForm.name,
+        description: subscriptionEditForm.description,
+        monthlyPrice: Number(subscriptionEditForm.monthlyPrice),
+        maxStudents: Number(subscriptionEditForm.maxStudents),
+      });
+
+      setEditingSubscription(null);
+      setSubscriptionEditForm(emptySubscriptionEditForm);
+      setNotice("Abonnement modifie.");
+      await loadAll();
+    } catch (requestError: unknown) {
+      subscriptionEditFeedback.applyApiError(requestError);
+    }
   };
 
   const deleteSubscription = async (subscriptionId: string) => {
@@ -273,6 +321,9 @@ export default function AdminWorkspace() {
                 <label>
                   Nom
                   <input
+                    required
+                    minLength={2}
+                    className={schoolFeedback.fieldErrors.name ? "field-invalid" : undefined}
                     value={schoolForm.name}
                     onChange={(event) =>
                       setSchoolForm((current) => ({
@@ -281,10 +332,14 @@ export default function AdminWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={schoolFeedback.fieldErrors.name} />
                 </label>
                 <label>
                   Email
                   <input
+                    required
+                    type="email"
+                    className={schoolFeedback.fieldErrors.email ? "field-invalid" : undefined}
                     value={schoolForm.email}
                     onChange={(event) =>
                       setSchoolForm((current) => ({
@@ -293,10 +348,13 @@ export default function AdminWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={schoolFeedback.fieldErrors.email} />
                 </label>
                 <label>
                   Ville
                   <input
+                    minLength={2}
+                    className={schoolFeedback.fieldErrors.city ? "field-invalid" : undefined}
                     value={schoolForm.city}
                     onChange={(event) =>
                       setSchoolForm((current) => ({
@@ -305,10 +363,14 @@ export default function AdminWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={schoolFeedback.fieldErrors.city} />
                 </label>
                 <label>
                   Abonnement
                   <select
+                    className={
+                      schoolFeedback.fieldErrors.subscriptionId ? "field-invalid" : undefined
+                    }
                     value={schoolForm.subscriptionId}
                     onChange={(event) =>
                       setSchoolForm((current) => ({
@@ -324,10 +386,16 @@ export default function AdminWorkspace() {
                       </option>
                     ))}
                   </select>
+                  <FieldError message={schoolFeedback.fieldErrors.subscriptionId} />
                 </label>
                 <label>
                   Manager prenom
                   <input
+                    required={hasManagerDraft}
+                    minLength={2}
+                    className={
+                      schoolFeedback.fieldErrors.managerFirstName ? "field-invalid" : undefined
+                    }
                     value={schoolForm.managerFirstName}
                     onChange={(event) =>
                       setSchoolForm((current) => ({
@@ -336,10 +404,16 @@ export default function AdminWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={schoolFeedback.fieldErrors.managerFirstName} />
                 </label>
                 <label>
                   Manager nom
                   <input
+                    required={hasManagerDraft}
+                    minLength={2}
+                    className={
+                      schoolFeedback.fieldErrors.managerLastName ? "field-invalid" : undefined
+                    }
                     value={schoolForm.managerLastName}
                     onChange={(event) =>
                       setSchoolForm((current) => ({
@@ -348,10 +422,16 @@ export default function AdminWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={schoolFeedback.fieldErrors.managerLastName} />
                 </label>
                 <label>
                   Manager username
                   <input
+                    required={hasManagerDraft}
+                    minLength={3}
+                    className={
+                      schoolFeedback.fieldErrors.managerUsername ? "field-invalid" : undefined
+                    }
                     value={schoolForm.managerUsername}
                     onChange={(event) =>
                       setSchoolForm((current) => ({
@@ -360,11 +440,17 @@ export default function AdminWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={schoolFeedback.fieldErrors.managerUsername} />
                 </label>
                 <label>
                   Manager password
                   <input
                     type="password"
+                    required={hasManagerDraft}
+                    minLength={8}
+                    className={
+                      schoolFeedback.fieldErrors.managerPassword ? "field-invalid" : undefined
+                    }
                     value={schoolForm.managerPassword}
                     onChange={(event) =>
                       setSchoolForm((current) => ({
@@ -373,7 +459,11 @@ export default function AdminWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={schoolFeedback.fieldErrors.managerPassword} />
                 </label>
+                {schoolFeedback.formError ? (
+                  <p className="error-text full-span">{schoolFeedback.formError}</p>
+                ) : null}
                 <button type="submit" className="primary-button full-span">
                   Ajouter l'ecole
                 </button>
@@ -421,6 +511,9 @@ export default function AdminWorkspace() {
                 <label>
                   Nom
                   <input
+                    required
+                    minLength={2}
+                    className={subscriptionFeedback.fieldErrors.name ? "field-invalid" : undefined}
                     value={subscriptionForm.name}
                     onChange={(event) =>
                       setSubscriptionForm((current) => ({
@@ -429,10 +522,14 @@ export default function AdminWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={subscriptionFeedback.fieldErrors.name} />
                 </label>
                 <label>
                   Description
                   <input
+                    className={
+                      subscriptionFeedback.fieldErrors.description ? "field-invalid" : undefined
+                    }
                     value={subscriptionForm.description}
                     onChange={(event) =>
                       setSubscriptionForm((current) => ({
@@ -441,10 +538,18 @@ export default function AdminWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={subscriptionFeedback.fieldErrors.description} />
                 </label>
                 <label>
                   Prix mensuel
                   <input
+                    required
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    className={
+                      subscriptionFeedback.fieldErrors.monthlyPrice ? "field-invalid" : undefined
+                    }
                     value={subscriptionForm.monthlyPrice}
                     onChange={(event) =>
                       setSubscriptionForm((current) => ({
@@ -453,10 +558,18 @@ export default function AdminWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={subscriptionFeedback.fieldErrors.monthlyPrice} />
                 </label>
                 <label>
                   Max etudiants
                   <input
+                    required
+                    type="number"
+                    min={1}
+                    step="1"
+                    className={
+                      subscriptionFeedback.fieldErrors.maxStudents ? "field-invalid" : undefined
+                    }
                     value={subscriptionForm.maxStudents}
                     onChange={(event) =>
                       setSubscriptionForm((current) => ({
@@ -465,7 +578,11 @@ export default function AdminWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={subscriptionFeedback.fieldErrors.maxStudents} />
                 </label>
+                {subscriptionFeedback.formError ? (
+                  <p className="error-text full-span">{subscriptionFeedback.formError}</p>
+                ) : null}
                 <button type="submit" className="primary-button full-span">
                   Creer l'abonnement
                 </button>
@@ -501,6 +618,9 @@ export default function AdminWorkspace() {
               <label>
                 Titre
                 <input
+                  required
+                  minLength={2}
+                  className={templateFeedback.fieldErrors.title ? "field-invalid" : undefined}
                   value={templateForm.title}
                   onChange={(event) =>
                     setTemplateForm((current) => ({
@@ -509,10 +629,16 @@ export default function AdminWorkspace() {
                     }))
                   }
                 />
+                <FieldError message={templateFeedback.fieldErrors.title} />
               </label>
               <label>
                 Signataire
                 <input
+                  required
+                  minLength={2}
+                  className={
+                    templateFeedback.fieldErrors.signerName ? "field-invalid" : undefined
+                  }
                   value={templateForm.signerName}
                   onChange={(event) =>
                     setTemplateForm((current) => ({
@@ -521,10 +647,16 @@ export default function AdminWorkspace() {
                     }))
                   }
                 />
+                <FieldError message={templateFeedback.fieldErrors.signerName} />
               </label>
               <label>
                 Role
                 <input
+                  required
+                  minLength={2}
+                  className={
+                    templateFeedback.fieldErrors.signerRole ? "field-invalid" : undefined
+                  }
                   value={templateForm.signerRole}
                   onChange={(event) =>
                     setTemplateForm((current) => ({
@@ -533,10 +665,16 @@ export default function AdminWorkspace() {
                     }))
                   }
                 />
+                <FieldError message={templateFeedback.fieldErrors.signerRole} />
               </label>
               <label>
                 Couleur
                 <input
+                  required
+                  minLength={4}
+                  className={
+                    templateFeedback.fieldErrors.accentColor ? "field-invalid" : undefined
+                  }
                   value={templateForm.accentColor}
                   onChange={(event) =>
                     setTemplateForm((current) => ({
@@ -545,10 +683,16 @@ export default function AdminWorkspace() {
                     }))
                   }
                 />
+                <FieldError message={templateFeedback.fieldErrors.accentColor} />
               </label>
               <label className="full-span">
                 Footer
                 <textarea
+                  required
+                  minLength={2}
+                  className={
+                    templateFeedback.fieldErrors.footerText ? "field-invalid" : undefined
+                  }
                   value={templateForm.footerText}
                   onChange={(event) =>
                     setTemplateForm((current) => ({
@@ -557,7 +701,11 @@ export default function AdminWorkspace() {
                     }))
                   }
                 />
+                <FieldError message={templateFeedback.fieldErrors.footerText} />
               </label>
+              {templateFeedback.formError ? (
+                <p className="error-text full-span">{templateFeedback.formError}</p>
+              ) : null}
               <button type="submit" className="primary-button full-span">
                 Sauvegarder le template
               </button>
@@ -569,12 +717,20 @@ export default function AdminWorkspace() {
       <SimpleModal
         open={Boolean(editingSubscription)}
         title="Modifier un abonnement"
-        onClose={() => setEditingSubscription(null)}
+        onClose={() => {
+          setEditingSubscription(null);
+          subscriptionEditFeedback.resetFeedback();
+        }}
       >
         <form className="grid-form" onSubmit={saveSubscriptionEdit}>
           <label>
             Nom
             <input
+              required
+              minLength={2}
+              className={
+                subscriptionEditFeedback.fieldErrors.name ? "field-invalid" : undefined
+              }
               value={subscriptionEditForm.name}
               onChange={(event) =>
                 setSubscriptionEditForm((current) => ({
@@ -583,10 +739,14 @@ export default function AdminWorkspace() {
                 }))
               }
             />
+            <FieldError message={subscriptionEditFeedback.fieldErrors.name} />
           </label>
           <label>
             Description
             <input
+              className={
+                subscriptionEditFeedback.fieldErrors.description ? "field-invalid" : undefined
+              }
               value={subscriptionEditForm.description}
               onChange={(event) =>
                 setSubscriptionEditForm((current) => ({
@@ -595,10 +755,18 @@ export default function AdminWorkspace() {
                 }))
               }
             />
+            <FieldError message={subscriptionEditFeedback.fieldErrors.description} />
           </label>
           <label>
             Prix mensuel
             <input
+              required
+              type="number"
+              min={0}
+              step="0.01"
+              className={
+                subscriptionEditFeedback.fieldErrors.monthlyPrice ? "field-invalid" : undefined
+              }
               value={subscriptionEditForm.monthlyPrice}
               onChange={(event) =>
                 setSubscriptionEditForm((current) => ({
@@ -607,10 +775,18 @@ export default function AdminWorkspace() {
                 }))
               }
             />
+            <FieldError message={subscriptionEditFeedback.fieldErrors.monthlyPrice} />
           </label>
           <label>
             Max etudiants
             <input
+              required
+              type="number"
+              min={1}
+              step="1"
+              className={
+                subscriptionEditFeedback.fieldErrors.maxStudents ? "field-invalid" : undefined
+              }
               value={subscriptionEditForm.maxStudents}
               onChange={(event) =>
                 setSubscriptionEditForm((current) => ({
@@ -619,12 +795,19 @@ export default function AdminWorkspace() {
                 }))
               }
             />
+            <FieldError message={subscriptionEditFeedback.fieldErrors.maxStudents} />
           </label>
+          {subscriptionEditFeedback.formError ? (
+            <p className="error-text full-span">{subscriptionEditFeedback.formError}</p>
+          ) : null}
           <div className="modal-actions full-span">
             <button
               type="button"
               className="ghost-button"
-              onClick={() => setEditingSubscription(null)}
+              onClick={() => {
+                setEditingSubscription(null);
+                subscriptionEditFeedback.resetFeedback();
+              }}
             >
               Annuler
             </button>

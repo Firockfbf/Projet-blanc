@@ -11,3 +11,5 @@ backend/*.db
 
 frontend/dist/
 backups/
+output/
+tmp/

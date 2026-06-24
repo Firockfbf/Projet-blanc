@@ -118,6 +118,42 @@ describe("CertiCampus API", () => {
     expect(dashboardResponse.body.stats.formations).toBe(1);
   });
 
+  it("returns field validation details when a formation payload is invalid", async () => {
+    const register = await request(app).post("/api/auth/register-school").send({
+      schoolName: "Ecole Validation",
+      email: "validation@school.test",
+      username: "validation-school",
+      password: "Test1234",
+      firstName: "Lena",
+      lastName: "Roux",
+      city: "Paris",
+    });
+
+    const response = await request(app)
+      .post("/api/formations")
+      .set("Authorization", `Bearer ${register.body.token}`)
+      .send({
+        name: "A",
+        code: "B",
+        year: "2025-2026",
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toBe("Les donnees envoyees sont invalides.");
+    expect(response.body.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "name",
+          message: "Ce champ doit contenir au moins 2 caracteres.",
+        }),
+        expect.objectContaining({
+          path: "code",
+          message: "Ce champ doit contenir au moins 2 caracteres.",
+        }),
+      ]),
+    );
+  });
+
   it("allows an admin to view schools", async () => {
     const passwordHash = await hashPassword("Admin1234");
 

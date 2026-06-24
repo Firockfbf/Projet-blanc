@@ -2,12 +2,15 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import api from "../api";
+import FieldError from "../components/FieldError";
+import useFormFeedback from "../hooks/useFormFeedback";
 import { useSession } from "../session";
 import type { User } from "../types";
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { user, setSession } = useSession();
+  const loginFeedback = useFormFeedback();
   const [email, setEmail] = useState("school@certicampus.test");
   const [password, setPassword] = useState("School1234");
   const [error, setError] = useState<string | null>(null);
@@ -21,6 +24,7 @@ export default function LoginPage() {
     event.preventDefault();
     setLoading(true);
     setError(null);
+    loginFeedback.resetFeedback();
 
     try {
       const response = await api.post<{ token: string; user: User }>("/auth/login", {
@@ -31,6 +35,7 @@ export default function LoginPage() {
       setSession(response.data.token, response.data.user);
       navigate(response.data.user.role === "ADMIN" ? "/admin" : "/school");
     } catch (requestError: unknown) {
+      loginFeedback.applyApiError(requestError);
       setError("Connexion impossible. Verifie tes identifiants.");
     } finally {
       setLoading(false);
@@ -65,17 +70,38 @@ export default function LoginPage() {
         <form className="stack-form" onSubmit={submit}>
           <label>
             Email
-            <input value={email} onChange={(event) => setEmail(event.target.value)} />
+            <input
+              required
+              type="email"
+              className={loginFeedback.fieldErrors.email ? "field-invalid" : undefined}
+              value={email}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                loginFeedback.clearFieldError("email");
+              }}
+            />
+            <FieldError message={loginFeedback.fieldErrors.email} />
           </label>
           <label>
             Mot de passe
             <input
               type="password"
+              required
+              minLength={1}
+              className={loginFeedback.fieldErrors.password ? "field-invalid" : undefined}
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                loginFeedback.clearFieldError("password");
+              }}
             />
+            <FieldError message={loginFeedback.fieldErrors.password} />
           </label>
-          {error ? <p className="error-text">{error}</p> : null}
+          {loginFeedback.formError ? (
+            <p className="error-text">{loginFeedback.formError}</p>
+          ) : error ? (
+            <p className="error-text">{error}</p>
+          ) : null}
           <button type="submit" className="primary-button" disabled={loading}>
             {loading ? "Connexion..." : "Se connecter"}
           </button>

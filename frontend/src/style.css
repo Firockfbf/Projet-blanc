@@ -69,6 +69,13 @@ textarea {
   color: var(--text-strong);
 }
 
+input.field-invalid,
+select.field-invalid,
+textarea.field-invalid {
+  border-color: #b42318;
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.12);
+}
+
 textarea {
   min-height: 120px;
   resize: vertical;
@@ -459,6 +466,12 @@ td {
 
 .error-text {
   color: #b42318;
+  font-weight: 600;
+}
+
+.field-error-text {
+  color: #b42318;
+  font-size: 0.86rem;
   font-weight: 600;
 }
 

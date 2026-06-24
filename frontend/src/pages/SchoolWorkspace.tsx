@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import api from "../api";
+import FieldError from "../components/FieldError";
 import SimpleModal from "../components/SimpleModal";
+import useFormFeedback from "../hooks/useFormFeedback";
 import { useSession } from "../session";
 import type {
   Certificate,
@@ -60,6 +62,12 @@ const emptyStudentFilters: StudentFilters = {
 
 export default function SchoolWorkspace() {
   const { clearSession, refreshUser, user } = useSession();
+  const studentFeedback = useFormFeedback();
+  const formationFeedback = useFormFeedback();
+  const studentEditFeedback = useFormFeedback();
+  const formationEditFeedback = useFormFeedback();
+  const profileFeedback = useFormFeedback();
+  const passwordFeedback = useFormFeedback();
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
   const [studentsLoading, setStudentsLoading] = useState(false);
@@ -256,21 +264,35 @@ export default function SchoolWorkspace() {
 
   const submitFormation = async (event: FormEvent) => {
     event.preventDefault();
-    await api.post("/formations", formationForm);
-    setFormationForm(emptyFormationForm);
-    setNotice("Formation ajoutee.");
-    await refreshFormationArea();
+    formationFeedback.resetFeedback();
+    setNotice(null);
+
+    try {
+      await api.post("/formations", formationForm);
+      setFormationForm(emptyFormationForm);
+      setNotice("Formation ajoutee.");
+      await refreshFormationArea();
+    } catch (requestError: unknown) {
+      formationFeedback.applyApiError(requestError);
+    }
   };
 
   const submitStudent = async (event: FormEvent) => {
     event.preventDefault();
-    await api.post("/students", {
-      ...studentForm,
-      formationId: studentForm.formationId || null,
-    });
-    setStudentForm(emptyStudentForm);
-    setNotice("Etudiant ajoute.");
-    await refreshStudentArea();
+    studentFeedback.resetFeedback();
+    setNotice(null);
+
+    try {
+      await api.post("/students", {
+        ...studentForm,
+        formationId: studentForm.formationId || null,
+      });
+      setStudentForm(emptyStudentForm);
+      setNotice("Etudiant ajoute.");
+      await refreshStudentArea();
+    } catch (requestError: unknown) {
+      studentFeedback.applyApiError(requestError);
+    }
   };
 
   const removeStudent = async (studentId: string) => {
@@ -336,6 +358,7 @@ export default function SchoolWorkspace() {
   };
 
   const openStudentModal = (student: Student) => {
+    studentEditFeedback.resetFeedback();
     setEditingStudent(student);
     setStudentEditForm({
       firstName: student.firstName,
@@ -354,18 +377,26 @@ export default function SchoolWorkspace() {
       return;
     }
 
-    await api.put(`/students/${editingStudent.id}`, {
-      ...studentEditForm,
-      formationId: studentEditForm.formationId || null,
-    });
+    studentEditFeedback.resetFeedback();
+    setNotice(null);
 
-    setEditingStudent(null);
-    setStudentEditForm(emptyStudentForm);
-    setNotice("Etudiant modifie.");
-    await refreshStudentArea();
+    try {
+      await api.put(`/students/${editingStudent.id}`, {
+        ...studentEditForm,
+        formationId: studentEditForm.formationId || null,
+      });
+
+      setEditingStudent(null);
+      setStudentEditForm(emptyStudentForm);
+      setNotice("Etudiant modifie.");
+      await refreshStudentArea();
+    } catch (requestError: unknown) {
+      studentEditFeedback.applyApiError(requestError);
+    }
   };
 
   const openFormationModal = (formation: Formation) => {
+    formationEditFeedback.resetFeedback();
     setEditingFormation(formation);
     setFormationEditForm({
       name: formation.name,
@@ -381,11 +412,18 @@ export default function SchoolWorkspace() {
       return;
     }
 
-    await api.put(`/formations/${editingFormation.id}`, formationEditForm);
-    setEditingFormation(null);
-    setFormationEditForm(emptyFormationForm);
-    setNotice("Formation modifiee.");
-    await refreshFormationArea();
+    formationEditFeedback.resetFeedback();
+    setNotice(null);
+
+    try {
+      await api.put(`/formations/${editingFormation.id}`, formationEditForm);
+      setEditingFormation(null);
+      setFormationEditForm(emptyFormationForm);
+      setNotice("Formation modifiee.");
+      await refreshFormationArea();
+    } catch (requestError: unknown) {
+      formationEditFeedback.applyApiError(requestError);
+    }
   };
 
   const generateCertificates = async (studentIds: string[]) => {
@@ -438,16 +476,30 @@ export default function SchoolWorkspace() {
 
   const updateProfile = async (event: FormEvent) => {
     event.preventDefault();
-    await api.put("/school/settings/profile", profileForm);
-    await refreshUser();
-    setNotice("Profil mis a jour.");
+    profileFeedback.resetFeedback();
+    setNotice(null);
+
+    try {
+      await api.put("/school/settings/profile", profileForm);
+      await refreshUser();
+      setNotice("Profil mis a jour.");
+    } catch (requestError: unknown) {
+      profileFeedback.applyApiError(requestError);
+    }
   };
 
   const updatePassword = async (event: FormEvent) => {
     event.preventDefault();
-    await api.put("/school/settings/password", passwordForm);
-    setPasswordForm({ currentPassword: "", newPassword: "" });
-    setNotice("Mot de passe modifie.");
+    passwordFeedback.resetFeedback();
+    setNotice(null);
+
+    try {
+      await api.put("/school/settings/password", passwordForm);
+      setPasswordForm({ currentPassword: "", newPassword: "" });
+      setNotice("Mot de passe modifie.");
+    } catch (requestError: unknown) {
+      passwordFeedback.applyApiError(requestError);
+    }
   };
 
   if (loading) {
@@ -541,6 +593,9 @@ export default function SchoolWorkspace() {
                 <label>
                   Prenom
                   <input
+                    required
+                    minLength={2}
+                    className={studentFeedback.fieldErrors.firstName ? "field-invalid" : undefined}
                     value={studentForm.firstName}
                     onChange={(event) =>
                       setStudentForm((current) => ({
@@ -549,10 +604,14 @@ export default function SchoolWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={studentFeedback.fieldErrors.firstName} />
                 </label>
                 <label>
                   Nom
                   <input
+                    required
+                    minLength={2}
+                    className={studentFeedback.fieldErrors.lastName ? "field-invalid" : undefined}
                     value={studentForm.lastName}
                     onChange={(event) =>
                       setStudentForm((current) => ({
@@ -561,10 +620,14 @@ export default function SchoolWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={studentFeedback.fieldErrors.lastName} />
                 </label>
                 <label>
                   Email
                   <input
+                    required
+                    type="email"
+                    className={studentFeedback.fieldErrors.email ? "field-invalid" : undefined}
                     value={studentForm.email}
                     onChange={(event) =>
                       setStudentForm((current) => ({
@@ -573,10 +636,14 @@ export default function SchoolWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={studentFeedback.fieldErrors.email} />
                 </label>
                 <label>
                   Formation
                   <select
+                    className={
+                      studentFeedback.fieldErrors.formationId ? "field-invalid" : undefined
+                    }
                     value={studentForm.formationId}
                     onChange={(event) =>
                       setStudentForm((current) => ({
@@ -592,10 +659,12 @@ export default function SchoolWorkspace() {
                       </option>
                     ))}
                   </select>
+                  <FieldError message={studentFeedback.fieldErrors.formationId} />
                 </label>
                 <label>
                   Statut
                   <select
+                    className={studentFeedback.fieldErrors.status ? "field-invalid" : undefined}
                     value={studentForm.status}
                     onChange={(event) =>
                       setStudentForm((current) => ({
@@ -606,12 +675,18 @@ export default function SchoolWorkspace() {
                   >
                     <option value="PENDING">PENDING</option>
                     <option value="ADMITTED">ADMITTED</option>
-                    <option value="FAILED">FAILED</option>
-                  </select>
+                      <option value="FAILED">FAILED</option>
+                    </select>
+                    <FieldError message={studentFeedback.fieldErrors.status} />
                 </label>
                 <label>
                   Promotion
                   <input
+                    required
+                    minLength={4}
+                    className={
+                      studentFeedback.fieldErrors.graduationYear ? "field-invalid" : undefined
+                    }
                     value={studentForm.graduationYear}
                     onChange={(event) =>
                       setStudentForm((current) => ({
@@ -620,7 +695,11 @@ export default function SchoolWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={studentFeedback.fieldErrors.graduationYear} />
                 </label>
+                {studentFeedback.formError ? (
+                  <p className="error-text full-span">{studentFeedback.formError}</p>
+                ) : null}
                 <button type="submit" className="primary-button full-span">
                   Ajouter l'etudiant
                 </button>
@@ -828,6 +907,9 @@ export default function SchoolWorkspace() {
                 <label>
                   Nom
                   <input
+                    required
+                    minLength={2}
+                    className={formationFeedback.fieldErrors.name ? "field-invalid" : undefined}
                     value={formationForm.name}
                     onChange={(event) =>
                       setFormationForm((current) => ({
@@ -836,10 +918,15 @@ export default function SchoolWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={formationFeedback.fieldErrors.name} />
                 </label>
                 <label>
                   Code
                   <input
+                    required
+                    minLength={2}
+                    maxLength={20}
+                    className={formationFeedback.fieldErrors.code ? "field-invalid" : undefined}
                     value={formationForm.code}
                     onChange={(event) =>
                       setFormationForm((current) => ({
@@ -848,10 +935,14 @@ export default function SchoolWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={formationFeedback.fieldErrors.code} />
                 </label>
                 <label>
                   Annee
                   <input
+                    required
+                    minLength={4}
+                    className={formationFeedback.fieldErrors.year ? "field-invalid" : undefined}
                     value={formationForm.year}
                     onChange={(event) =>
                       setFormationForm((current) => ({
@@ -860,7 +951,11 @@ export default function SchoolWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={formationFeedback.fieldErrors.year} />
                 </label>
+                {formationFeedback.formError ? (
+                  <p className="error-text full-span">{formationFeedback.formError}</p>
+                ) : null}
                 <button type="submit" className="primary-button full-span">
                   Ajouter la formation
                 </button>
@@ -1111,6 +1206,9 @@ export default function SchoolWorkspace() {
                 <label>
                   Prenom
                   <input
+                    required
+                    minLength={2}
+                    className={profileFeedback.fieldErrors.firstName ? "field-invalid" : undefined}
                     value={profileForm.firstName}
                     onChange={(event) =>
                       setProfileForm((current) => ({
@@ -1119,10 +1217,14 @@ export default function SchoolWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={profileFeedback.fieldErrors.firstName} />
                 </label>
                 <label>
                   Nom
                   <input
+                    required
+                    minLength={2}
+                    className={profileFeedback.fieldErrors.lastName ? "field-invalid" : undefined}
                     value={profileForm.lastName}
                     onChange={(event) =>
                       setProfileForm((current) => ({
@@ -1131,10 +1233,15 @@ export default function SchoolWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={profileFeedback.fieldErrors.lastName} />
                 </label>
                 <label>
                   Username
                   <input
+                    required
+                    minLength={3}
+                    maxLength={30}
+                    className={profileFeedback.fieldErrors.username ? "field-invalid" : undefined}
                     value={profileForm.username}
                     onChange={(event) =>
                       setProfileForm((current) => ({
@@ -1143,10 +1250,14 @@ export default function SchoolWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={profileFeedback.fieldErrors.username} />
                 </label>
                 <label>
                   Email
                   <input
+                    required
+                    type="email"
+                    className={profileFeedback.fieldErrors.email ? "field-invalid" : undefined}
                     value={profileForm.email}
                     onChange={(event) =>
                       setProfileForm((current) => ({
@@ -1155,10 +1266,14 @@ export default function SchoolWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={profileFeedback.fieldErrors.email} />
                 </label>
                 <label>
                   Ecole
                   <input
+                    required
+                    minLength={2}
+                    className={profileFeedback.fieldErrors.schoolName ? "field-invalid" : undefined}
                     value={profileForm.schoolName}
                     onChange={(event) =>
                       setProfileForm((current) => ({
@@ -1167,10 +1282,13 @@ export default function SchoolWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={profileFeedback.fieldErrors.schoolName} />
                 </label>
                 <label>
                   Ville
                   <input
+                    minLength={2}
+                    className={profileFeedback.fieldErrors.city ? "field-invalid" : undefined}
                     value={profileForm.city}
                     onChange={(event) =>
                       setProfileForm((current) => ({
@@ -1179,7 +1297,11 @@ export default function SchoolWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={profileFeedback.fieldErrors.city} />
                 </label>
+                {profileFeedback.formError ? (
+                  <p className="error-text full-span">{profileFeedback.formError}</p>
+                ) : null}
                 <button type="submit" className="primary-button full-span">
                   Mettre a jour
                 </button>
@@ -1193,6 +1315,11 @@ export default function SchoolWorkspace() {
                   Mot de passe actuel
                   <input
                     type="password"
+                    required
+                    minLength={1}
+                    className={
+                      passwordFeedback.fieldErrors.currentPassword ? "field-invalid" : undefined
+                    }
                     value={passwordForm.currentPassword}
                     onChange={(event) =>
                       setPasswordForm((current) => ({
@@ -1201,11 +1328,17 @@ export default function SchoolWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={passwordFeedback.fieldErrors.currentPassword} />
                 </label>
                 <label>
                   Nouveau mot de passe
                   <input
                     type="password"
+                    required
+                    minLength={8}
+                    className={
+                      passwordFeedback.fieldErrors.newPassword ? "field-invalid" : undefined
+                    }
                     value={passwordForm.newPassword}
                     onChange={(event) =>
                       setPasswordForm((current) => ({
@@ -1214,7 +1347,11 @@ export default function SchoolWorkspace() {
                       }))
                     }
                   />
+                  <FieldError message={passwordFeedback.fieldErrors.newPassword} />
                 </label>
+                {passwordFeedback.formError ? (
+                  <p className="error-text">{passwordFeedback.formError}</p>
+                ) : null}
                 <button type="submit" className="primary-button">
                   Changer le mot de passe
                 </button>
@@ -1227,12 +1364,20 @@ export default function SchoolWorkspace() {
       <SimpleModal
         open={Boolean(editingStudent)}
         title="Modifier un etudiant"
-        onClose={() => setEditingStudent(null)}
+        onClose={() => {
+          setEditingStudent(null);
+          studentEditFeedback.resetFeedback();
+        }}
       >
         <form className="grid-form" onSubmit={saveStudentEdit}>
           <label>
             Prenom
             <input
+              required
+              minLength={2}
+              className={
+                studentEditFeedback.fieldErrors.firstName ? "field-invalid" : undefined
+              }
               value={studentEditForm.firstName}
               onChange={(event) =>
                 setStudentEditForm((current) => ({
@@ -1241,10 +1386,16 @@ export default function SchoolWorkspace() {
                 }))
               }
             />
+            <FieldError message={studentEditFeedback.fieldErrors.firstName} />
           </label>
           <label>
             Nom
             <input
+              required
+              minLength={2}
+              className={
+                studentEditFeedback.fieldErrors.lastName ? "field-invalid" : undefined
+              }
               value={studentEditForm.lastName}
               onChange={(event) =>
                 setStudentEditForm((current) => ({
@@ -1253,10 +1404,14 @@ export default function SchoolWorkspace() {
                 }))
               }
             />
+            <FieldError message={studentEditFeedback.fieldErrors.lastName} />
           </label>
           <label>
             Email
             <input
+              required
+              type="email"
+              className={studentEditFeedback.fieldErrors.email ? "field-invalid" : undefined}
               value={studentEditForm.email}
               onChange={(event) =>
                 setStudentEditForm((current) => ({
@@ -1265,10 +1420,14 @@ export default function SchoolWorkspace() {
                 }))
               }
             />
+            <FieldError message={studentEditFeedback.fieldErrors.email} />
           </label>
           <label>
             Formation
             <select
+              className={
+                studentEditFeedback.fieldErrors.formationId ? "field-invalid" : undefined
+              }
               value={studentEditForm.formationId}
               onChange={(event) =>
                 setStudentEditForm((current) => ({
@@ -1280,14 +1439,16 @@ export default function SchoolWorkspace() {
               <option value="">Sans formation</option>
               {formations.map((formation) => (
                 <option key={formation.id} value={formation.id}>
-                  {formation.name}
-                </option>
-              ))}
+                {formation.name}
+              </option>
+            ))}
             </select>
+            <FieldError message={studentEditFeedback.fieldErrors.formationId} />
           </label>
           <label>
             Statut
             <select
+              className={studentEditFeedback.fieldErrors.status ? "field-invalid" : undefined}
               value={studentEditForm.status}
               onChange={(event) =>
                 setStudentEditForm((current) => ({
@@ -1297,13 +1458,19 @@ export default function SchoolWorkspace() {
               }
             >
               <option value="PENDING">PENDING</option>
-              <option value="ADMITTED">ADMITTED</option>
-              <option value="FAILED">FAILED</option>
-            </select>
+                <option value="ADMITTED">ADMITTED</option>
+                <option value="FAILED">FAILED</option>
+              </select>
+              <FieldError message={studentEditFeedback.fieldErrors.status} />
           </label>
           <label>
             Promotion
             <input
+              required
+              minLength={4}
+              className={
+                studentEditFeedback.fieldErrors.graduationYear ? "field-invalid" : undefined
+              }
               value={studentEditForm.graduationYear}
               onChange={(event) =>
                 setStudentEditForm((current) => ({
@@ -1312,9 +1479,20 @@ export default function SchoolWorkspace() {
                 }))
               }
             />
+            <FieldError message={studentEditFeedback.fieldErrors.graduationYear} />
           </label>
+          {studentEditFeedback.formError ? (
+            <p className="error-text full-span">{studentEditFeedback.formError}</p>
+          ) : null}
           <div className="modal-actions full-span">
-            <button type="button" className="ghost-button" onClick={() => setEditingStudent(null)}>
+            <button
+              type="button"
+              className="ghost-button"
+              onClick={() => {
+                setEditingStudent(null);
+                studentEditFeedback.resetFeedback();
+              }}
+            >
               Annuler
             </button>
             <button type="submit" className="primary-button">
@@ -1327,12 +1505,20 @@ export default function SchoolWorkspace() {
       <SimpleModal
         open={Boolean(editingFormation)}
         title="Modifier une formation"
-        onClose={() => setEditingFormation(null)}
+        onClose={() => {
+          setEditingFormation(null);
+          formationEditFeedback.resetFeedback();
+        }}
       >
         <form className="grid-form" onSubmit={saveFormationEdit}>
           <label>
             Nom
             <input
+              required
+              minLength={2}
+              className={
+                formationEditFeedback.fieldErrors.name ? "field-invalid" : undefined
+              }
               value={formationEditForm.name}
               onChange={(event) =>
                 setFormationEditForm((current) => ({
@@ -1341,10 +1527,17 @@ export default function SchoolWorkspace() {
                 }))
               }
             />
+            <FieldError message={formationEditFeedback.fieldErrors.name} />
           </label>
           <label>
             Code
             <input
+              required
+              minLength={2}
+              maxLength={20}
+              className={
+                formationEditFeedback.fieldErrors.code ? "field-invalid" : undefined
+              }
               value={formationEditForm.code}
               onChange={(event) =>
                 setFormationEditForm((current) => ({
@@ -1353,10 +1546,16 @@ export default function SchoolWorkspace() {
                 }))
               }
             />
+            <FieldError message={formationEditFeedback.fieldErrors.code} />
           </label>
           <label className="full-span">
             Annee
             <input
+              required
+              minLength={4}
+              className={
+                formationEditFeedback.fieldErrors.year ? "field-invalid" : undefined
+              }
               value={formationEditForm.year}
               onChange={(event) =>
                 setFormationEditForm((current) => ({
@@ -1365,9 +1564,20 @@ export default function SchoolWorkspace() {
                 }))
               }
             />
+            <FieldError message={formationEditFeedback.fieldErrors.year} />
           </label>
+          {formationEditFeedback.formError ? (
+            <p className="error-text full-span">{formationEditFeedback.formError}</p>
+          ) : null}
           <div className="modal-actions full-span">
-            <button type="button" className="ghost-button" onClick={() => setEditingFormation(null)}>
+            <button
+              type="button"
+              className="ghost-button"
+              onClick={() => {
+                setEditingFormation(null);
+                formationEditFeedback.resetFeedback();
+              }}
+            >
               Annuler
             </button>
             <button type="submit" className="primary-button">
