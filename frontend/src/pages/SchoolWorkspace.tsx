@@ -72,6 +72,7 @@ export default function SchoolWorkspace() {
   const [loading, setLoading] = useState(true);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [certificatesLoading, setCertificatesLoading] = useState(false);
+  const [templateDownloading, setTemplateDownloading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<SchoolDashboardResponse | null>(null);
@@ -474,6 +475,37 @@ export default function SchoolWorkspace() {
     await refreshStudentArea();
   };
 
+  const downloadStudentTemplate = async () => {
+    setTemplateDownloading(true);
+    setError(null);
+
+    try {
+      const response = await api.get("/students/template", {
+        responseType: "blob",
+      });
+      const contentTypeHeader = response.headers["content-type"];
+      const blob = new Blob([response.data], {
+        type:
+          typeof contentTypeHeader === "string"
+            ? contentTypeHeader
+            : "text/csv;charset=utf-8",
+      });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = downloadUrl;
+      link.download = "students-import-template.csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (requestError: unknown) {
+      setError("Impossible de telecharger le template CSV.");
+    } finally {
+      setTemplateDownloading(false);
+    }
+  };
+
   const updateProfile = async (event: FormEvent) => {
     event.preventDefault();
     profileFeedback.resetFeedback();
@@ -585,9 +617,16 @@ export default function SchoolWorkspace() {
             <section className="data-card">
               <div className="card-head">
                 <h2>Ajouter un etudiant</h2>
-                <a href="/api/students/template" className="secondary-link">
-                  Telecharger le template CSV
-                </a>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => void downloadStudentTemplate()}
+                  disabled={templateDownloading}
+                >
+                  {templateDownloading
+                    ? "Telechargement..."
+                    : "Telecharger le template CSV"}
+                </button>
               </div>
               <form className="grid-form" onSubmit={submitStudent}>
                 <label>
